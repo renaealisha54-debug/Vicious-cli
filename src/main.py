@@ -1,8 +1,4 @@
-import sys
-import re
-import os
-import json
-import subprocess
+import sys, re, os, json
 
 CONFIG_PATH = os.path.expanduser("~/vicious-cli/config/paths.json")
 
