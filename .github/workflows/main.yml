@@ -1,0 +1,27 @@
+name: Vicious Build & Lint Check
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-python: '3.x'
+
+      - name: Validate Python Syntax
+        run: |
+          python -m py_compile src/main.py
+
+      - name: Validate Shell Script
+        run: |
+          bash -n src/state_sync.sh
