@@ -5,6 +5,7 @@ import json
 import subprocess
 
 CONFIG_PATH = os.path.expanduser("~/vicious-cli/config/paths.json")
+HISTORY_PATH = os.path.expanduser("~/.bash_history")
 
 def load_presets():
     if os.path.exists(CONFIG_PATH):
@@ -12,41 +13,71 @@ def load_presets():
             return json.load(f)
     return {}
 
-def extract_and_expand(text, presets):
+def load_history():
+    """Loads previously executed commands from bash history."""
+    if os.path.exists(HISTORY_PATH):
+        with open(HISTORY_PATH, "r", errors="ignore") as f:
+            return set(line.strip() for line in f if line.strip())
+    return set()
+
+def extract_expand_and_filter(text, presets, history):
     pattern = r"```(?:bash|sh|shell)?\n(.*?)```"
     matches = re.findall(pattern, text, re.DOTALL)
-    commands = []
+    
+    # Get assigned app target paths to filter out unwanted apps
+    allowed_paths = [os.path.normpath(v) for v in presets.values()]
+    
+    display_list = []
+    cmd_map = {}
+
     for match in matches:
         for line in match.strip().split("\n"):
             line = line.strip()
-            if line and not line.startswith("#"):
-                for key, val in presets.items():
-                    line = line.replace(key, val)
-                commands.append(line)
-    return commands
+            if not line or line.startswith("#"):
+                continue
 
-def launch_fzf(commands):
-    if not commands:
-        print("[Vicious] No valid executable commands found in clipboard input.")
+            # 1. Expand presets
+            expanded_line = line
+            for key, val in presets.items():
+                expanded_line = expanded_line.replace(key, val)
+
+            # 2. Filter: Only include commands that target assigned paths or local operations
+            # Skip if the command explicitly references a path outside your configured app folders
+            if "/" in expanded_line and not any(p in expanded_line for p in allowed_paths):
+                # If command points to a specific path outside allowed paths, ignore it
+                if expanded_line.startswith("cd /") or expanded_line.startswith("ls /"):
+                    continue
+
+            # 3. Check execution history status
+            is_executed = expanded_line in history
+            status_tag = "[EXECUTED] " if is_executed else "[NEW]      "
+            
+            display_str = f"{status_tag} {expanded_line}"
+            display_list.append(display_str)
+            cmd_map[display_str] = expanded_line
+
+    return display_list, cmd_map
+
+def launch_fzf(display_list, cmd_map):
+    if not display_list:
+        print("[Vicious] No matching app commands found in clipboard.")
         return
 
-    # Join extracted commands with newlines
-    fzf_input = "\n".join(commands).encode("utf-8")
+    fzf_input = "\n".join(display_list).encode("utf-8")
     
     try:
-        # Pass -m / --multi flag to fzf to enable Tab selection
         process = subprocess.Popen(
-            ["fzf", "-m", "--prompt=Vicious Batch Run (TAB to select, ENTER to execute) > "],
+            ["fzf", "-m", "--prompt=Vicious App Filter > "],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE
         )
         stdout, _ = process.communicate(input=fzf_input)
-        selected = stdout.decode("utf-8").strip().splitlines()
+        selected_displays = stdout.decode("utf-8").strip().splitlines()
 
-        if selected:
-            print(f"\n[Vicious] Executing {len(selected)} selected command(s)...\n")
-            for cmd in selected:
-                cmd = cmd.strip()
+        if selected_displays:
+            print(f"\n[Vicious] Executing {len(selected_displays)} selected command(s)...\n")
+            for item in selected_displays:
+                cmd = cmd_map.get(item.strip())
                 if cmd:
                     print(f"➜ Running: {cmd}")
                     os.system(cmd)
@@ -56,9 +87,10 @@ def launch_fzf(commands):
 
 if __name__ == "__main__":
     presets = load_presets()
+    history = load_history()
     raw_input = sys.stdin.read() if not sys.stdin.isatty() else ""
     if raw_input:
-        extracted = extract_and_expand(raw_input, presets)
-        launch_fzf(extracted)
+        display_list, cmd_map = extract_expand_and_filter(raw_input, presets, history)
+        launch_fzf(display_list, cmd_map)
     else:
-        print("[Vicious] Send input via pipe, e.g.: termux-clipboard-get | python src/main.py")
+        print("[Vicious] Usage: termux-clipboard-get | python src/main.py")
