@@ -17,16 +17,16 @@ def get_active_model(client):
     try:
         models_page = client.models.list()
         available_ids = [m.id for m in models_page.data]
-        
+
         for preferred in ["llama-3.3-70b-versatile", "llama-3.1-70b-versatile", "llama3-70b-8192", "llama-3.1-8b-instant", "qwen/qwen3.8-27b"]:
             if preferred in available_ids:
                 return preferred
-                
+
         if available_ids:
             return available_ids[0]
     except Exception as e:
         log_error(f"Failed to fetch models list: {e}")
-    
+
     return "llama3-8b-8192"
 
 def query_groq(prompt, context):
@@ -37,12 +37,12 @@ def query_groq(prompt, context):
     try:
         client = Groq(api_key=key)
         target_model = get_active_model(client)
-        
+
         system_instruction = (
             "You are an AI developer assistant communicating with a CLI parser. "
             "Output strictly valid JSON with keys: 'diagnosis', 'instructions', 'advice', 'commands' (array)."
         )
-        
+
         chat_completion = client.chat.completions.create(
             messages=[
                 {"role": "system", "content": system_instruction},
@@ -51,7 +51,7 @@ def query_groq(prompt, context):
             model=target_model,
             response_format={"type": "json_object"}
         )
-        
+
         raw_text = chat_completion.choices[0].message.content
         return json.loads(raw_text), f"Groq ({target_model})"
     except Exception as e:
@@ -62,12 +62,11 @@ def run_menu(parsed_data, provider_name):
     while True:
         options = {}
         idx = 1
-        
+
         print("\n" + "="*40)
         print(f"   VICIOUS AI MENU ({provider_name})   ")
         print("="*40)
-        
-        # Display full raw response as option 1 for chat-style viewing
+
         options[str(idx)] = ("Display Full Response", "full")
         print(f" {idx}) Display Full Response")
         idx += 1
@@ -92,9 +91,9 @@ def run_menu(parsed_data, provider_name):
             options[str(idx)] = ("Show Recommended Commands", "show_cmds")
             print(f" {idx}) Show Recommended Commands")
             idx += 1
-            
-            options[str(idx)] = ("Execute All Commands", "exec_cmds")
-            print(f" {idx}) Execute All Commands")
+
+            options[str(idx)] = ("Execute Commands (asks before each)", "exec_cmds")
+            print(f" {idx}) Execute Commands (asks before each)")
             idx += 1
 
         options[str(idx)] = ("Exit", "exit")
@@ -123,8 +122,21 @@ def run_menu(parsed_data, provider_name):
                 for i, c in enumerate(cmds, 1):
                     print(f" [{i}] {c}")
             elif action == "exec_cmds":
-                print(f"\nExecuting {len(cmds)} command(s)...")
+                print(f"\n{len(cmds)} command(s) suggested by the AI — NOT reviewed for safety.")
+                run_rest = False
                 for c in cmds:
+                    if not run_rest:
+                        answer = input(
+                            f"\nRun this command?\n  {c}\n(y)es / (n)o / (a)ll remaining / (q)uit: "
+                        ).strip().lower()
+                        if answer == 'q':
+                            print("Stopped — no further commands will run.")
+                            break
+                        elif answer == 'a':
+                            run_rest = True
+                        elif answer != 'y':
+                            print(f"Skipped: {c}")
+                            continue
                     print(f"➜ Running: {c}")
                     os.system(c)
             elif action == "exit":
@@ -139,7 +151,7 @@ if __name__ == "__main__":
         sys.exit(0)
 
     prompt = " ".join(sys.argv[1:])
-    
+
     context = ""
     if os.path.exists(STATE_PATH):
         with open(STATE_PATH, "r") as f:
