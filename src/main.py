@@ -1,96 +1,60 @@
 import sys
-import re
 import os
-import json
-import subprocess
+from ai_chat import generate_ai_response
+from context_manager import append_and_truncate_context
+from logger import logger
 
-CONFIG_PATH = os.path.expanduser("~/vicious-cli/config/paths.json")
-HISTORY_PATH = os.path.expanduser("~/.bash_history")
+def verify_environment():
+    """Ensure at least one supported provider key is present."""
+    keys = ["GROQ_API_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY"]
+    if not any(os.environ.get(k) for k in keys):
+        print("\n[Error] No API keys found in environment.")
+        print("Please export at least one of: GROQ_API_KEY, GEMINI_API_KEY, OPENAI_API_KEY\n")
+        logger.error("Startup failed: missing API keys.")
+        sys.exit(1)
 
-def load_presets():
-    if os.path.exists(CONFIG_PATH):
-        with open(CONFIG_PATH, "r") as f:
-            return json.load(f)
-    return {}
+def prompt_user_action():
+    print("\nActions: [y] Execute | [n] Skip | [a] Always Allow | [q] Quit")
+    choice = input("Select an option: ").strip().lower()
+    return choice
 
-def load_history():
-    """Loads previously executed commands from bash history."""
-    if os.path.exists(HISTORY_PATH):
-        with open(HISTORY_PATH, "r", errors="ignore") as f:
-            return set(line.strip() for line in f if line.strip())
-    return set()
-
-def extract_expand_and_filter(text, presets, history):
-    pattern = r"```(?:bash|sh|shell)?\n(.*?)```"
-    matches = re.findall(pattern, text, re.DOTALL)
+def main():
+    verify_environment()
     
-    # Get assigned app target paths to filter out unwanted apps
-    allowed_paths = [os.path.normpath(v) for v in presets.values()]
-    
-    display_list = []
-    cmd_map = {}
+    if len(sys.argv) < 2:
+        print("Usage: vicious <prompt>")
+        sys.exit(0)
 
-    for match in matches:
-        for line in match.strip().split("\n"):
-            line = line.strip()
-            if not line or line.startswith("#"):
-                continue
+    user_prompt = " ".join(sys.argv[1:])
+    logger.info(f"User Request: {user_prompt}")
+    print(f"\n[vicious] Processing request: '{user_prompt}'...")
 
-            # 1. Expand presets
-            expanded_line = line
-            for key, val in presets.items():
-                expanded_line = expanded_line.replace(key, val)
+    system_instruction = (
+        "You are Vicious CLI, an intelligent system administrator assistant. "
+        "Return short, clear responses or executable shell commands."
+    )
 
-            # 2. Filter: Only include commands that target assigned paths or local operations
-            # Skip if the command explicitly references a path outside your configured app folders
-            if "/" in expanded_line and not any(p in expanded_line for p in allowed_paths):
-                # If command points to a specific path outside allowed paths, ignore it
-                if expanded_line.startswith("cd /") or expanded_line.startswith("ls /"):
-                    continue
-
-            # 3. Check execution history status
-            is_executed = expanded_line in history
-            status_tag = "[EXECUTED] " if is_executed else "[NEW]      "
-            
-            display_str = f"{status_tag} {expanded_line}"
-            display_list.append(display_str)
-            cmd_map[display_str] = expanded_line
-
-    return display_list, cmd_map
-
-def launch_fzf(display_list, cmd_map):
-    if not display_list:
-        print("[Vicious] No matching app commands found in clipboard.")
-        return
-
-    fzf_input = "\n".join(display_list).encode("utf-8")
-    
     try:
-        process = subprocess.Popen(
-            ["fzf", "-m", "--prompt=Vicious App Filter > "],
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE
-        )
-        stdout, _ = process.communicate(input=fzf_input)
-        selected_displays = stdout.decode("utf-8").strip().splitlines()
+        response = generate_ai_response(user_prompt, system_instruction)
+        print(f"\n--- AI Output ---\n{response}\n-----------------")
+        
+        # Log and update history
+        logger.info(f"AI Output: {response}")
+        append_and_truncate_context(f"### User: {user_prompt}\n- Response: {response}")
 
-        if selected_displays:
-            print(f"\n[Vicious] Executing {len(selected_displays)} selected command(s)...\n")
-            for item in selected_displays:
-                cmd = cmd_map.get(item.strip())
-                if cmd:
-                    print(f"➜ Running: {cmd}")
-                    os.system(cmd)
-                    print("-" * 40)
-    except FileNotFoundError:
-        print("[Vicious Error] fzf is not installed. Run: pkg install fzf")
+        action = prompt_user_action()
+        if action == 'q':
+            print("Exiting.")
+            sys.exit(0)
+        elif action == 'y':
+            print("[Executing command...]")
+            # Place shell execution logic here
+        else:
+            print("[Skipped execution.]")
+
+    except Exception as e:
+        logger.error(f"Execution error: {e}")
+        print(f"\n[Error] {e}")
 
 if __name__ == "__main__":
-    presets = load_presets()
-    history = load_history()
-    raw_input = sys.stdin.read() if not sys.stdin.isatty() else ""
-    if raw_input:
-        display_list, cmd_map = extract_expand_and_filter(raw_input, presets, history)
-        launch_fzf(display_list, cmd_map)
-    else:
-        print("[Vicious] Usage: termux-clipboard-get | python src/main.py")
+    main()
