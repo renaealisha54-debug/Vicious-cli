@@ -4,6 +4,7 @@ from ai_chat import generate_ai_response
 from context_manager import append_and_truncate_context
 from logger import logger
 from executor import execute_shell_command
+from updater import run_self_update
 
 def verify_environment():
     """Ensure at least one supported provider key is present."""
@@ -20,13 +21,17 @@ def prompt_user_action():
     return choice
 
 def main():
-    verify_environment()
-    
     if len(sys.argv) < 2:
-        print("Usage: vicious <prompt>")
+        print("Usage: vicious <prompt> | vicious update")
         sys.exit(0)
 
     user_prompt = " ".join(sys.argv[1:])
+
+    # Intercept self-update subcommand
+    if user_prompt.strip().lower() == "update":
+        run_self_update()
+
+    verify_environment()
     logger.info(f"User Request: {user_prompt}")
     print(f"\n[vicious] Processing request: '{user_prompt}'...")
 
@@ -38,7 +43,6 @@ def main():
 
     try:
         cmd = generate_ai_response(user_prompt, system_instruction).strip()
-        # Clean markdown code fences if model output contains them
         if cmd.startswith("```"):
             cmd = cmd.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
 
