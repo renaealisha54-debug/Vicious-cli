@@ -1,0 +1,19 @@
+[2026-09-02 21:30:41] Claude Error: No module named 'anthropic'
+[2026-09-02 21:30:41] Gemini Error: HTTP Error 400: Bad Request
+[2026-09-02 22:02:20] Claude Error: No module named 'anthropic'
+[2026-09-02 22:02:20] Gemini Error: HTTP Error 400: Bad Request
+[2026-09-02 22:06:12] Claude Error: No module named 'anthropic'
+[2026-09-02 22:06:12] Gemini Error: HTTP Error 400: Bad Request
+[2026-09-02 23:34:43] Claude Error: No module named 'anthropic'
+[2026-09-02 23:34:43] Gemini Error: HTTP Error 400: Bad Request
+[2026-09-02 23:34:53] Claude Error: No module named 'anthropic'
+[2026-09-02 23:34:53] Gemini Error: HTTP Error 400: Bad Request
+[2026-09-03 00:13:25] Claude Error: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.'}, 'request_id': 'req_011CefrZKEkbxnbwe9EZqZT7'}
+[2026-09-03 00:13:25] Gemini Error: HTTP Error 404: Not Found
+[2026-09-03 00:15:26] Claude Error: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.'}, 'request_id': 'req_011CefriF1G8RuUZerP3cvAT'}
+[2026-09-03 00:15:26] Gemini Error: HTTP Error 404: Not Found
+[2026-09-03 00:25:58] Groq Error: Error code: 404 - {'error': {'message': 'The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.', 'type': 'invalid_request_error', 'code': 'model_not_found'}}
+[2026-09-03 00:26:36] Groq Error: Error code: 400 - {'error': {'message': 'The model `llama-3.1-70b-versatile` has been decommissioned and is no longer supported. Please refer to https://console.groq.com/docs/deprecations for a recommendation on which model to use instead.', 'type': 'invalid_request_error', 'code': 'model_decommissioned'}}
+[2026-09-03 00:34:00] Groq Error: Error code: 400 - {'error': {'message': 'The model `llama-3.3-70b-specdec` has been decommissioned and is no longer supported. Please refer to https://console.groq.com/docs/deprecations for a recommendation on which model to use instead.', 'type': 'invalid_request_error', 'code': 'model_decommissioned'}}
+[2026-09-03 00:34:32] Groq Error: Error code: 400 - {'error': {'message': 'The model `llama3-70b-8192` has been decommissioned and is no longer supported. Please refer to https://console.groq.com/docs/deprecations for a recommendation on which model to use instead.', 'type': 'invalid_request_error', 'code': 'model_decommissioned'}}
+[2026-09-03 00:35:12] Groq Error: Error code: 404 - {'error': {'message': 'The model `llama-3.1-8b-instant` does not exist or you do not have access to it.', 'type': 'invalid_request_error', 'code': 'model_not_found'}}

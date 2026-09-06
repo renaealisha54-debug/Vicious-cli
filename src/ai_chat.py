@@ -4,14 +4,24 @@ import sys
 def call_groq(prompt, system_instruction):
     from groq import Groq
     client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
-    response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=[
-            {"role": "system", "content": system_instruction},
-            {"role": "user", "content": prompt}
-        ]
-    )
-    return response.choices[0].message.content
+    
+    # Active Groq model IDs
+    models_to_try = ["llama3-8b-8192", "llama3-70b-8192", "mixtral-8x7b-32768"]
+    
+    for model in models_to_try:
+        try:
+            response = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": system_instruction},
+                    {"role": "user", "content": prompt}
+                ]
+            )
+            return response.choices[0].message.content
+        except Exception:
+            continue
+
+    raise RuntimeError("Could not connect to active Groq models.")
 
 def call_gemini(prompt, system_instruction):
     import google.generativeai as genai
@@ -32,7 +42,7 @@ def generate_ai_response(prompt: str, system_instruction: str = "") -> str:
     """Iterates through configured providers until one succeeds."""
     for name, env_var, provider_func in PROVIDERS:
         if not os.environ.get(env_var):
-            continue  # Skip if API key is not exported
+            continue
             
         try:
             return provider_func(prompt, system_instruction)
