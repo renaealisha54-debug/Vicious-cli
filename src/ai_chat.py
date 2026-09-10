@@ -1,52 +1,83 @@
 import os
-import sys
+import json
+from openai import OpenAI
 
-def call_groq(prompt, system_instruction):
-    from groq import Groq
-    client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
-    
-    # Active Groq model IDs
-    models_to_try = ["llama3-8b-8192", "llama3-70b-8192", "mixtral-8x7b-32768"]
-    
-    for model in models_to_try:
-        try:
-            response = client.chat.completions.create(
-                model=model,
-                messages=[
-                    {"role": "system", "content": system_instruction},
-                    {"role": "user", "content": prompt}
-                ]
+# Path to persistent local settings
+CONFIG_FILE = os.path.expanduser("~/vicious-cli/config/settings.json")
+HISTORY_FILE = os.path.expanduser("~/vicious-cli/config/history.json")
+
+def load_settings():
+    if os.path.exists(CONFIG_FILE):
+        with open(CONFIG_FILE, "r") as f:
+            return json.load(f)
+    return {"provider": "groq", "model": "openai/gpt-oss-120b"}
+
+def load_history(limit=5):
+    if os.path.exists(HISTORY_FILE):
+        with open(HISTORY_FILE, "r") as f:
+            data = json.load(f)
+            return data[-limit:]
+    return []
+
+def save_history(user_prompt, response_text):
+    os.makedirs(os.path.dirname(HISTORY_FILE), exist_ok=True)
+    history = []
+    if os.path.exists(HISTORY_FILE):
+        with open(HISTORY_FILE, "r") as f:
+            try:
+                history = json.load(f)
+            except Exception:
+                history = []
+    history.append({"user": user_prompt, "assistant": response_text})
+    with open(HISTORY_FILE, "w") as f:
+        json.dump(history, f, indent=2)
+
+def generate_ai_response(prompt):
+    settings = load_settings()
+    provider = settings.get("provider", "groq")
+    history = load_history(limit=5)
+
+    # Build conversation context stack
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "You are VICIOUS, an automated CLI terminal bridge. "
+                "You retain strict awareness of previous code and context."
             )
-            return response.choices[0].message.content
-        except Exception:
-            continue
+        }
+    ]
 
-    raise RuntimeError("Could not connect to active Groq models.")
+    # Inject historical context
+    for entry in history:
+        messages.append({"role": "user", "content": entry["user"]})
+        messages.append({"role": "assistant", "content": entry["assistant"]})
 
-def call_gemini(prompt, system_instruction):
-    import google.generativeai as genai
-    genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
-    model = genai.GenerativeModel(
-        model_name="gemini-1.5-flash",
-        system_instruction=system_instruction
-    )
-    response = model.generate_content(prompt)
-    return response.text
+    messages.append({"role": "user", "content": prompt})
 
-PROVIDERS = [
-    ("Groq", "GROQ_API_KEY", call_groq),
-    ("Gemini", "GEMINI_API_KEY", call_gemini),
-]
+    try:
+        if provider == "groq":
+            client = OpenAI(
+                base_url="https://api.groq.com/openai/v1",
+                api_key=os.environ.get("GROQ_API_KEY")
+            )
+            model_name = settings.get("model", "openai/gpt-oss-120b")
+        elif provider == "gemini":
+            client = OpenAI(
+                base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+                api_key=os.environ.get("GEMINI_API_KEY")
+            )
+            model_name = settings.get("model", "gemini-2.5-flash")
+        else:
+            return None, f"Unsupported provider: {provider}"
 
-def generate_ai_response(prompt: str, system_instruction: str = "") -> str:
-    """Iterates through configured providers until one succeeds."""
-    for name, env_var, provider_func in PROVIDERS:
-        if not os.environ.get(env_var):
-            continue
-            
-        try:
-            return provider_func(prompt, system_instruction)
-        except Exception as e:
-            print(f"[Warning] {name} failed: {e}. Trying fallback...", file=sys.stderr)
-            
-    raise RuntimeError("All configured AI providers failed or missing API keys.")
+        completion = client.chat.completions.create(
+            model=model_name,
+            messages=messages,
+            temperature=0.2
+        )
+        response = completion.choices[0].message.content
+        save_history(prompt, response)
+        return response, None
+    except Exception as e:
+        return None, str(e)
