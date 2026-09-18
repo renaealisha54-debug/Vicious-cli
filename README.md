@@ -1,4 +1,4 @@
-# Vicious CLI
+ # Vicious CLI
 
 An AI-powered command-line assistant for Termux/Android, with an optional Kivy GUI control panel and a packaged Android APK build via Buildozer.
 
